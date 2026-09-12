@@ -138,7 +138,7 @@ class Vm {
     fix32 api_rnd(fix32 inRange);
     void api_srand(fix32 seed);
 
-    void update_buttons();
+    void update_buttons(int fps = 60);
 
     // void vm_flip();
     void vm_run();

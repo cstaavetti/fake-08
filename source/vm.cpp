@@ -1190,7 +1190,7 @@ void Vm::api_srand(fix32 seed)
     }
 }
 
-void Vm::update_buttons() {
+void Vm::update_buttons(int fps) {
     //get button states from hardware
     auto inputState = _host->scanInput();
     
@@ -1208,7 +1208,7 @@ void Vm::update_buttons() {
         return;
     }
     
-    _input->SetState(inputState.KDown, inputState.KHeld);
+    _input->SetState(inputState.KDown, inputState.KHeld, fps);
     if (_memory->drawState.devkitMode) {
         _input->SetMouse(inputState.mouseX, inputState.mouseY, inputState.mouseBtnState);
         _input->SetKeyboard(inputState.KBdown,inputState.KBkey);

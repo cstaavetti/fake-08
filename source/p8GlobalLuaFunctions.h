@@ -539,19 +539,20 @@ function __z8_run_cart(cart_code)
         if _update or _update60 or _draw then
             while true do
                 if _update60 then
-                    _update_buttons()
+                    _update_buttons(60)
                     _update60()
                 else
                     yield() -- yield each other frame for 30fps
-                    _update_buttons()
+                    _update_buttons(30)
                     if (_update) _update()
                 end
                 if _draw then
                     _draw()
-                    flip()
-                else
-                    yield()
                 end
+                -- Input was already sampled before the update. Calling flip
+                -- here would advance repeat counters twice and hide events
+                -- in a sample that the game's update never observes.
+                yield()
             end
         end
     ]]

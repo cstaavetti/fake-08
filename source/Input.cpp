@@ -6,16 +6,23 @@
 
 Input::Input(PicoRam* memory):
     _currentKDown(0),
-    _currentKHeld(0)
+    _currentKHeld(0),
+    _previousKHeld(0)
 {
     _memory = memory;
 
     std::fill(_framesHeld, _framesHeld + 8, 0);
 }
 
-void Input::SetState(uint8_t kdown, uint8_t kheld){
-    _currentKDown = kdown;
+void Input::SetState(uint8_t kdown, uint8_t kheld, int fps){
+    // Host edges can be only one 60 Hz frame wide. A 30 Hz cart must
+    // also detect edges against its own previous input sample.
+    const uint8_t previousHeld = _previousKHeld;
+    // Pause remains host-edge driven: toggling the menu clears game input,
+    // and must not turn a still-held pause button into another press.
+    _currentKDown = kdown | ((kheld & ~previousHeld) & 0x3f);
     _currentKHeld = kheld;
+    _previousKHeld = kheld;
     //key 6 (PAUSE MENU) only fires for one frame, even if held
     if ((_currentKHeld & BITMASK(6)) && !(_currentKDown & BITMASK(6))) {
         _currentKHeld = _currentKHeld & ~(BITMASK(6));
@@ -27,29 +34,26 @@ void Input::SetState(uint8_t kdown, uint8_t kheld){
         ? 15 
         : _memory->hwState.btnpRepeatDelay;
 
-    if (repeatDelay == 255){
-        return;
-    }
-
     uint8_t repeatInterval = _memory->hwState.btnpRepeatInterval == 0 
         ? 4 
-        : _memory->hwState.btnpRepeatDelay;
+        : _memory->hwState.btnpRepeatInterval;
 
-    for (int i = 0; i < 7; i ++) {
+    // Repeat registers are measured in 30 Hz frames, even for _update60.
+    const uint32_t scale = fps == 60 ? 2 : 1;
+    const uint32_t delay = repeatDelay * scale;
+    const uint32_t interval = repeatInterval * scale;
+    for (int i = 0; i < 6; i ++) {
         bool down = BITMASK(i) & kheld;
-
-        _framesHeld[i] = down ? _framesHeld[i] + 1 : 0;
-
-        //update kdown to be true if held for 15 frames, then every 4th after that.
-        //from wiki:
-        //btnp() implements a keyboard-like repeat mechanism: if the player holds 
-        //the button for 15 frames, it registers as on again for one frame, then 
-        //again every four frames after that. The frame counter resets when the 
-        //player releases the button. 
-
-        bool repeatPressed = 
-            (_framesHeld[i] == repeatDelay) ||
-            (_framesHeld[i] / repeatDelay >= 1 && _framesHeld[i] % repeatInterval == 0);
+        // Count elapsed updates from the initial press, which is frame zero.
+        // Reset on release even when repeat is disabled.
+        if (!down || !(previousHeld & BITMASK(i))) {
+            _framesHeld[i] = 0;
+        } else {
+            ++_framesHeld[i];
+        }
+        bool repeatPressed = down && repeatDelay != 255 &&
+            _framesHeld[i] >= delay &&
+            (_framesHeld[i] - delay) % interval == 0;
 
         if (repeatPressed) {
             _currentKDown = _currentKDown | BITMASK(i);

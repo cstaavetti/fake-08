@@ -1309,7 +1309,8 @@ int srand(lua_State *L) {
 }
 
 int _update_buttons(lua_State *L) {
-    _vmForLuaApi->update_buttons();
+    int fps = lua_gettop(L) > 0 && (int)lua_tonumber(L, 1) == 30 ? 30 : 60;
+    _vmForLuaApi->update_buttons(fps);
     
     return 0;
 }

@@ -7,8 +7,9 @@ class Input{
     PicoRam* _memory;
 	uint8_t _currentKDown;
     uint8_t _currentKHeld;
+    uint8_t _previousKHeld;
 
-	uint16_t _framesHeld[8];
+	uint32_t _framesHeld[8];
 
     int16_t _mouseX;
     int16_t _mouseY;
@@ -18,7 +19,7 @@ class Input{
 	
     public:
     Input(PicoRam* memory);
-    void SetState(uint8_t kdown, uint8_t kheld);
+    void SetState(uint8_t kdown, uint8_t kheld, int fps = 30);
     void SetMouse(int16_t mouseX, int16_t mouseY, uint8_t mouseBtnState);
 	
     void SetKeyboard(bool kbdown, std::string kbkey);
