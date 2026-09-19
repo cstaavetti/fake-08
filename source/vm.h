@@ -41,6 +41,9 @@ class Vm {
     bool _cartChangeQueued;
     bool _pauseMenu;
     bool _clearInputOnResume;
+    InputState_t _hostInput{};
+    bool _pauseButtonHeld = false;
+    bool _insideStep = false;
     string _prevCartKey;
     string _nextCartKey;
     const unsigned char* _nextCartData;
@@ -176,4 +179,3 @@ class Vm {
     size_t serializeLuaState(char* dest);
     void deserializeLuaState(const char* src, size_t len);
 };
-
