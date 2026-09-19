@@ -704,6 +704,9 @@ void Audio::FillAudioBuffer(void *audioBuffer, size_t offset, size_t size){
                         float const freq_base = key_to_freq(24); // C2
                         float freq_factor = new_synth.freq / freq_base;
                         float main_sfx_volume = new_synth.volume;
+                        // An ended instrument leaves the synth parameters untouched.
+                        // Do not render the parent note as a built-in waveform then.
+                        new_synth.volume = 0.0f;
                         update_sfx_state(channel_state.custom_sfx, new_synth, freq_factor, 0.0f, false, true, half_rate, inv_frames_per_second);
                         new_synth.volume *= main_sfx_volume;
                     }
@@ -920,6 +923,9 @@ void Audio::FillMonoAudioBuffer(void *audioBuffer, size_t offset, size_t size){
                         float const freq_base = key_to_freq(24);
                         float freq_factor = new_synth.freq / freq_base;
                         float main_sfx_volume = new_synth.volume;
+                        // An ended instrument leaves the synth parameters untouched.
+                        // Do not render the parent note as a built-in waveform then.
+                        new_synth.volume = 0.0f;
                         update_sfx_state(channel_state.custom_sfx, new_synth, freq_factor, 0.0f, false, true, half_rate, inv_frames_per_second);
                         new_synth.volume *= main_sfx_volume;
                     }

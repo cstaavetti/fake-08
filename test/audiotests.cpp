@@ -220,3 +220,79 @@ TEST_CASE("audio class behaves as expected") {
     }
 
 }
+
+TEST_CASE("ended custom instruments stay silent") {
+    for (bool stereo : {false, true}) {
+        CAPTURE(stereo);
+        PicoRam ram;
+        ram.Reset();
+        Audio audio(&ram);
+        // Instrument 0 is one short triangle note. The parent note lasts
+        // eight times longer, so the instrument ends before its parent.
+        ram.sfx[0].speed = 1;
+        ram.sfx[0].notes[0].setKey(24);
+        ram.sfx[0].notes[0].setVolume(7);
+        ram.sfx[8].speed = 8;
+        ram.sfx[8].notes[0].setKey(24);
+        ram.sfx[8].notes[0].setVolume(7);
+        ram.sfx[8].notes[0].setCustom(1);
+        audio.api_sfx(8, 0, 0, 0);
+        std::vector<uint32_t> samples(1000);
+        if (stereo) audio.FillAudioBuffer(samples.data(), 0, samples.size());
+        else audio.FillMonoAudioBuffer(samples.data(), 0, samples.size());
+        auto& channel = audio.getAudioState()->_sfxChannels[0];
+        REQUIRE(channel.main_sfx.sfx == 8);
+        REQUIRE(channel.custom_sfx.sfx == -1);
+        auto* mono = reinterpret_cast<int16_t*>(samples.data());
+        const size_t stride = stereo ? 2 : 1;
+        bool started = false;
+        for (int n = 0; n < 180; ++n) started |= mono[n * stride] != 0;
+        CHECK(started);
+        // Allow the normal crossfade to finish after the instrument ends.
+        bool silent = true;
+        for (int n = 500; n < 1000; ++n) silent &= mono[n * stride] == 0;
+        CHECK(silent);
+    }
+}
+
+TEST_CASE("movement effects preserve protected custom music voices") {
+    PicoRam ram;
+    ram.Reset();
+    Audio idle(&ram), moving(&ram);
+    ram.sfx[0].speed = 1;
+    ram.sfx[0].notes[0].setKey(24);
+    ram.sfx[0].notes[0].setVolume(7);
+    ram.sfx[8].speed = 8;
+    for (int n = 0; n < 32; ++n) {
+        ram.sfx[8].notes[n].setKey(24 + n % 3);
+        ram.sfx[8].notes[n].setVolume(7);
+        ram.sfx[8].notes[n].setCustom(1);
+    }
+    ram.songs[0].data[0] = 8;
+    ram.songs[0].data[1] = 8;
+    ram.songs[0].data[2] = 8;
+    ram.songs[0].data[3] = 0x40;
+    ram.sfx[63].speed = 3;
+    ram.sfx[63].notes[0].setKey(11);
+    ram.sfx[63].notes[0].setVolume(3);
+    idle.api_music(0, 0, 7);
+    moving.api_music(0, 0, 7);
+    bool unchanged = true;
+    uint32_t buffer[368];
+    for (int frame = 0; frame < 60; ++frame) {
+        if (frame % 10 == 0) REQUIRE(moving.api_sfx(63, -1, 0, 0) == 3);
+        idle.FillAudioBuffer(buffer, 0, 368);
+        moving.FillAudioBuffer(buffer, 0, 368);
+        for (int c = 0; c < 3; ++c) {
+            const auto& a = idle.getAudioState()->_sfxChannels[c];
+            const auto& b = moving.getAudioState()->_sfxChannels[c];
+            unchanged &= a.main_sfx.sfx == b.main_sfx.sfx &&
+                a.main_sfx.offset == b.main_sfx.offset &&
+                a.custom_sfx.offset == b.custom_sfx.offset &&
+                a.last_synth.phi == b.last_synth.phi &&
+                a.last_synth.volume == b.last_synth.volume &&
+                a.last_synth.freq == b.last_synth.freq;
+        }
+    }
+    CHECK(unchanged);
+}
