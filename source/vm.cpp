@@ -167,22 +167,14 @@ bool _initializeLuaState(lua_State* luaState) {
         return false;
     }
 
-    // Push the eris.init_persist_all function on the top of the lua stack (or nil if it doesn't exist)
-    // we call this function to establish the default global state of things not to save in the save state
-    // needs to be called after globals are loaded but before the cart is run, or _init is called
-    //TODO: move these calls to the glue code?
-    // lua_getglobal(luaState, "eris");
-	// lua_getfield(luaState, -1, "init_persist_all");
-
-    // if (lua_pcall(luaState, 0, 0, 0)){
-    //     Logger_Write("Error setting up lua persistence: %s\n", lua_tostring(luaState, -1));
-    //     lua_pop(luaState, 1);
-    //     return false;
-    // }
-
-    // //pop the eris.init_persist_all fuction off the stack now that we're done with it
-    // lua_pop(luaState, 1);
-
+    lua_getglobal(luaState, "eris");
+    lua_getfield(luaState, -1, "init_persist_all");
+    if (lua_pcall(luaState, 0, 0, 0) != LUA_OK) {
+        Logger_Write("Error setting up Lua persistence: %s\n", lua_tostring(luaState, -1));
+        lua_pop(luaState, 2);
+        return false;
+    }
+    lua_pop(luaState, 1);
 
     return true;
 }
@@ -1490,34 +1482,40 @@ std::string Vm::getLuaLine(string filename, int linenumber) {
 }
 
 
-size_t Vm::serializeLuaState(char* dest) {
+size_t Vm::serializeLuaState(char* dest, size_t capacity) {
+    const int top = lua_gettop(_luaState);
     lua_getglobal(_luaState, "eris");
-	lua_getfield(_luaState, -1, "persist_all");
-
-	if (lua_pcall(_luaState, 0, 1, 0) != 0) {
-		std::string e = lua_tostring(_luaState, -1);
-		lua_pop(_luaState, 1);
-		return 0;
-	}
-
-	size_t len;
-	const char* result = lua_tolstring(_luaState, -1, &len);
+    lua_getfield(_luaState, -1, "persist_all");
+    if (lua_pcall(_luaState, 0, 1, 0) != LUA_OK) {
+        Logger_Write("Error saving Lua state: %s\n", lua_tostring(_luaState, -1));
+        lua_settop(_luaState, top);
+        return 0;
+    }
+    size_t len = 0;
+    const char* result = lua_tolstring(_luaState, -1, &len);
+    if (!result || !dest || len > capacity) {
+        Logger_Write("Lua state exceeds save buffer\n");
+        lua_settop(_luaState, top);
+        return 0;
+    }
     memcpy(dest, result, len);
-	lua_pop(_luaState, 2);
-
+    lua_settop(_luaState, top);
     return len;
 }
 
-void Vm::deserializeLuaState(const char* src, size_t len) {
+bool Vm::deserializeLuaState(const char* src, size_t len) {
+    if (!src || !len) return false;
+    const int top = lua_gettop(_luaState);
     lua_getglobal(_luaState, "eris");
-	lua_getfield(_luaState, -1, "restore_all");
-	lua_pushlstring(_luaState, src, len);
-
-	if (lua_pcall(_luaState, 1, 0, 0) != 0) {
-		std::string e = lua_tostring(_luaState, -1);
-		lua_pop(_luaState, 1);
-		return;
-	}
-	lua_pop(_luaState, 1);
+    lua_getfield(_luaState, -1, "restore_all");
+    lua_pushlstring(_luaState, src, len);
+    // Eris temporarily holds incomplete prototypes via lightuserdata. Do not
+    // let collection reclaim them before they are attached to Lua closures.
+    const bool gcRunning = lua_gc(_luaState, LUA_GCISRUNNING, 0);
+    lua_gc(_luaState, LUA_GCSTOP, 0);
+    const bool ok = lua_pcall(_luaState, 1, 0, 0) == LUA_OK;
+    if (gcRunning) lua_gc(_luaState, LUA_GCRESTART, 0);
+    if (!ok) Logger_Write("Error loading Lua state: %s\n", lua_tostring(_luaState, -1));
+    lua_settop(_luaState, top);
+    return ok;
 }
-

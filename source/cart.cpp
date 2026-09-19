@@ -396,6 +396,8 @@ bool Cart::loadCartFromString(std::string cartStr) {
 }
 
 Cart::Cart (const unsigned char* cartData, size_t size){
+    // Match file loading: omitted text-cart sections must be deterministic.
+    initCartRom();
     if (size < 5) {
         LoadError = "Invalid cart. Less than 5 bytes";
         return;
@@ -690,5 +692,4 @@ void Cart::setSfx(std::string sfxString) {
         sfxIdx++;
     } 
 }
-
 

@@ -354,8 +354,11 @@ eris.init_persist_all = function()
   for i=1,n do
     local k=keyset[i]
     local v=_G[k]
-    eris.perm[v] = i
-    eris.unperm[i] = v
+    -- Menu entries are mutable (cart callbacks); serialize their contents.
+    if k != "__f08_menu_items" then
+      eris.perm[v] = i
+      eris.unperm[i] = v
+    end
     eris.original_G[k] = v
   end
 end
@@ -363,7 +366,7 @@ end
 eris.persist_all = function()
   local new_symbols = {}
   for k,v in pairs(_G) do
-    if eris.original_G[k] != v then
+    if eris.original_G[k] != v or k == "__f08_menu_items" then
        new_symbols[k] = v
     end
   end
@@ -373,9 +376,21 @@ end
 
 eris.restore_all = function(persisted)
   local new_symbols = eris.unpersist(eris.unperm, persisted)
-  for k,v in pairs(new_symbols) do
-    _G[k] = v
+  assert(type(new_symbols) == "table", "invalid saved globals")
+  assert(type(new_symbols.__cart_sandbox) == "table", "missing saved cart")
+  assert(type(new_symbols.__z8_loop) == "thread", "missing saved coroutine")
+  -- Remove globals created after the snapshot, then restore the saved world.
+  local remove = {}
+  for k,v in pairs(_G) do
+    if eris.original_G[k] == nil and new_symbols[k] == nil then
+      remove[#remove + 1] = k
+    end
   end
+  for _,k in ipairs(remove) do _G[k] = nil end
+  for k,v in pairs(eris.original_G) do _G[k] = v end
+  for k,v in pairs(new_symbols) do _G[k] = v end
+  -- Native API fallback must point at the restored sandbox as well.
+  rawset(debug.getregistry(), "__PICO8_SANDBOX", __cart_sandbox)
 end
 
 function __z8_strlen(s)
@@ -759,5 +774,4 @@ end
 __z8_loop = cocreate(__z8_shell)
 
 )#";
-
 
