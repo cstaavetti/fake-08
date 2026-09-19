@@ -612,10 +612,22 @@ void Vm::deserializeCartDataToMemory(std::string cartDataStr) {
 }
 
 bool Vm::Step(){
+    // Pause belongs to the host frame, not the cart's 30/60 Hz update loop.
+    // Cache this poll: several hosts consume events when scanInput is called.
+    _hostInput = _host->scanInput();
+    const bool pauseHeld = (_hostInput.KHeld & 0x40) != 0;
+    const bool pausePressed = (_hostInput.KDown & 0x40) != 0 || pauseHeld;
+    if (pausePressed && !_pauseButtonHeld) {
+        togglePauseMenu();
+    }
+    _pauseButtonHeld = pauseHeld;
+
     _picoFrameCount++;
     bool ret = false;
     lua_getglobal(_luaState, "__z8_tick");
+    _insideStep = true;
     int status = lua_pcall(_luaState, 0, 1, 0);
+    _insideStep = false;
     if (status != LUA_OK)
     {
         char const *message = lua_tostring(_luaState, -1);
@@ -1192,7 +1204,7 @@ void Vm::api_srand(fix32 seed)
 
 void Vm::update_buttons() {
     //get button states from hardware
-    auto inputState = _host->scanInput();
+    auto inputState = _insideStep ? _hostInput : _host->scanInput();
     
     // If we just resumed from pause menu, clear input so the button press
     // that closed the menu doesn't get passed to the cart.
@@ -1218,10 +1230,6 @@ void Vm::update_buttons() {
         _input->SetKeyboard(false,"");
     }
 
-    // Check for pause button (bit 6 / 0x40)
-    if (_input->btnp(6)) {
-        togglePauseMenu();
-    }
 }
 
 // void Vm::vm_flip() {
@@ -1520,4 +1528,3 @@ void Vm::deserializeLuaState(const char* src, size_t len) {
 	}
 	lua_pop(_luaState, 1);
 }
-
