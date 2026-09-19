@@ -75,4 +75,5 @@ SOURCES_CXX := $(CORE_DIR)/platform/libretro/libretro.cpp \
                 $(CORE_DIR)/source/printHelper.cpp \
                 $(CORE_DIR)/source/stringToDataHelpers.cpp \
                 $(CORE_DIR)/source/synth.cpp \
+                $(CORE_DIR)/source/savestate.cpp \
                 $(CORE_DIR)/source/vm.cpp
