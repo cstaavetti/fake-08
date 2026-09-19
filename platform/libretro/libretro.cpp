@@ -254,7 +254,7 @@ EXPORT void retro_get_system_info(struct retro_system_info *info)
 {
     memset(info, 0, sizeof(*info));
     info->library_name = "fake-08";
-    info->library_version = "0.0.2.20a"; //todo: get from build flags
+    info->library_version = "0.0.2.20a-inputfix3"; //todo: get from build flags
     info->valid_extensions = "p8|png";
     #ifdef _NEED_FULL_PATH_
     info->need_fullpath = true;
