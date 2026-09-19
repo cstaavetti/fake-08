@@ -30,7 +30,7 @@ static retro_log_printf_t log_cb;
 
 
 #define SAMPLERATE 22050
-#define SAMPLESPERFRAME (SAMPLERATE / 30)
+#define SAMPLESPERFRAME ((SAMPLERATE + 59) / 60)
 #define NUM_BUFFERS 2
 const size_t audioBufferSize = SAMPLESPERFRAME * NUM_BUFFERS;
 
@@ -405,10 +405,12 @@ EXPORT void retro_run()
     kHeld = currKHeld;
     kDown = currKDown;
 
-    if (frame % 2 == 0) {
-        _audio->FillAudioBuffer(&audioBuffer, 0, SAMPLESPERFRAME);
-        audio_batch_cb(audioBuffer, SAMPLESPERFRAME);
-    }
+    // The host runs at 60 Hz even for 30 fps carts. Send audio each host
+    // frame, rather than alternating a 735-sample burst with no audio.
+    // Alternate 368/367 samples to preserve exactly 22050 samples/second.
+    const size_t audioFrames = (SAMPLERATE + (frame % 2 == 0 ? 30 : 0)) / 60;
+    _audio->FillAudioBuffer(&audioBuffer, 0, audioFrames);
+    audio_batch_cb(audioBuffer, audioFrames);
 
 
     uint8_t* picoFb = _vm->GetPicoInteralFb();

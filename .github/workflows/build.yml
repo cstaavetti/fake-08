@@ -19,6 +19,13 @@ jobs:
 
       - name: Build
         run: make tests
+
+      - name: Check libretro audio cadence
+        run: |
+          make -C platform/libretro -j2 platform=unix
+          c++ -std=c++17 -Iplatform/libretro test/libretro/audio-cadence.cpp -ldl -o /tmp/audio-cadence
+          /tmp/audio-cadence "$PWD/platform/libretro/fake08_libretro.so" "$PWD/test/carts/audio-cadence-30.p8" --require-sound
+          /tmp/audio-cadence "$PWD/platform/libretro/fake08_libretro.so" "$PWD/test/carts/audio-cadence-60.p8" --require-sound
   
   xbox-series-libretro:
     name: Xbox Series Libretro
